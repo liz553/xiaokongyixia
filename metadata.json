@@ -1,0 +1,8 @@
+{
+  "name": "React Vite Project",
+  "description": "A React application configured with Vite and TypeScript.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

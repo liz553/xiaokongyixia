@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="transparent"/>
+  <!-- Base body representing "空空" (fluid/calm shape) -->
+  <path d="M256 120 C180 120, 140 180, 140 256 C140 332, 180 392, 256 392 C332 392, 372 332, 372 256 C372 180, 332 120, 256 120 Z" fill="#0ea5e9" opacity="0.8"/>
+  <path d="M256 140 C190 140, 160 190, 160 256 C160 322, 190 372, 256 372 C322 372, 352 322, 352 256 C352 190, 322 140, 256 140 Z" fill="#38bdf8" />
+  
+  <!-- Eyes -->
+  <circle cx="216" cy="240" r="16" fill="#ffffff" />
+  <circle cx="296" cy="240" r="16" fill="#ffffff" />
+  
+  <!-- Gentle smile -->
+  <path d="M244 280 Q256 295 268 280" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+</svg>

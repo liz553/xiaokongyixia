@@ -1,7 +1,7 @@
 
 
 name = "xiaokongyixia"
-compatibility_date = "2026-01-01"
+compatibility_date = "2026-07-15"
 compatibility_flags = ["nodejs_compat"]
 
 # Pages 构建输出目录

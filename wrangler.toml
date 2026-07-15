@@ -1,3 +1,9 @@
+# wrangler.toml
 name = "xiaokongyixia"
-compatibility_date = "2025-01-01"
-compatibility_flags = ["nodejs_compat"]
+compatibility_date = "2024-12-18"
+
+# 关键：为 Pages Functions 添加 Node.js 兼容性标志
+functions_compatibility_flags = ["nodejs_compat"]
+
+# 指定 Pages 构建输出目录（如果 Vite 构建产物在 dist 目录）
+pages_build_output_dir = "dist"

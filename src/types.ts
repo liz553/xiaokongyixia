@@ -36,6 +36,7 @@ export type UserProfile = {
   avatarUrl?: string;
   role?: 'user' | 'vip' | 'admin' | 'visitor';
   token?: string;
+  email?: string;
 };
 
 export type UserState = {

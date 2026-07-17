@@ -44,6 +44,7 @@ export default function App() {
   
   const [userState, setUserState] = useState<UserState>(() => {
     const saved = localStorage.getItem('userState');
+    const localToken = localStorage.getItem('token');
     if (saved) {
       const parsed = JSON.parse(saved);
       // Migration: if they don't have the new default exercises, seed them
@@ -67,9 +68,17 @@ export default function App() {
            // However it's fine as they will show up.
         }
       }
+      const profile = parsed.profile || { username: '空空的朋友', avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix' };
+      if (localToken && !profile.token) {
+        profile.token = localToken;
+      }
+      if (!localToken && profile.token) {
+        profile.token = undefined;
+        profile.email = undefined;
+      }
       return {
         ...parsed,
-        profile: parsed.profile || { username: '空空的朋友', avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix' },
+        profile,
         reminders: parsed.reminders || []
       };
     }
@@ -135,7 +144,7 @@ export default function App() {
   // Sync daily stats and logs on mount if logged in
   useEffect(() => {
     const fetchCloudInit = async () => {
-      const token = localStorage.getItem('auth_token');
+      const token = localStorage.getItem('token');
       if (!token) return;
       try {
         const today = new Date();
@@ -186,7 +195,7 @@ export default function App() {
 
 
     // Call subscribe to push on app load if logged in
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem('token');
     if (token) {
       if (userState.receiveEndNotification || userState.allowReminders) {
          subscribeToPush();
@@ -332,7 +341,7 @@ export default function App() {
   // Sync a newly created log to cloud if logged in
 
   const syncRemindersToCloud = async (reminders: Reminder[]) => {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem('token');
     if (!token) return;
     try {
       await apiFetch('/api/reminders/save', {
@@ -346,7 +355,7 @@ export default function App() {
   };
 
   const syncLogToCloud = async (log: ActivityLog) => {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem('token');
     if (!token) return;
     try {
       await apiFetch('/api/logs/create', {

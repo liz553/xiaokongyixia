@@ -3,7 +3,7 @@ export const trackEvent = (eventName: string, payload: any = {}) => {
     const events = JSON.parse(localStorage.getItem('app_analytics_events') || '[]');
     const userStateStr = localStorage.getItem('userState');
     const userState = userStateStr ? JSON.parse(userStateStr) : {};
-    const token = localStorage.getItem('jwt_token');
+    const token = localStorage.getItem('token');
     
     events.push({
       event_name: eventName,

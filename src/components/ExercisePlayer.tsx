@@ -52,7 +52,7 @@ export function ExercisePlayer({ exercise, onComplete }: ExercisePlayerProps) {
           }
         } else if (exercise.contentUrl.startsWith('cloud_ref:')) {
           const id = exercise.contentUrl.replace('cloud_ref:', '');
-          const token = localStorage.getItem('jwt_token') || '';
+          const token = localStorage.getItem('token') || '';
           setResolvedUrl(`/api/video-proxy?mediaId=${id}&token=${token}`);
         } else {
           setResolvedUrl(exercise.contentUrl);

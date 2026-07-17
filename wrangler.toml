@@ -7,3 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 # Pages 构建输出目录
 pages_build_output_dir = "dist"
 
+\[\[d1\_databases\]\]
+binding = "DB"
+database\_name = "reminder-db"
+database\_id = "389c174b-a20f-43bf-8600-a7f4f8652c74"

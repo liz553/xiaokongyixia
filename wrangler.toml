@@ -12,6 +12,7 @@ binding = "DB"
 database_name = "reminder-db"
 database_id = "389c174b-a20f-43bf-8600-a7f4f8652c74"
 
+#
 [vars]
 ALLOW_PUBLIC_REGISTER = "true"
 

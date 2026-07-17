@@ -22,7 +22,7 @@ export function LogHistoryModal({ userState, world, onClose }: LogHistoryModalPr
 
   useEffect(() => {
     const fetchCloudLogs = async () => {
-      const token = localStorage.getItem('auth_token');
+      const token = localStorage.getItem('token');
       if (!token) return;
       
       try {

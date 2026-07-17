@@ -6,15 +6,12 @@ import { apiFetch, setAuthToken } from '../lib/api';
 import { getAuthToken, removeAuthToken } from '../lib/api';
 import { trackEvent } from '../lib/analytics';
 
-
 interface ProfileModalProps {
   profile: UserProfile;
   onUpdate: (profile: UserProfile) => void;
   onOpenReminders: () => void;
   onClose: () => void;
 }
-
-
 
 export function ProfileModal({ profile, onUpdate, onOpenReminders, onClose }: ProfileModalProps) {
   const [username, setUsername] = useState(profile.username);
@@ -39,10 +36,7 @@ export function ProfileModal({ profile, onUpdate, onOpenReminders, onClose }: Pr
     try {
       setLoading(true);
       setError('');
-      // First try to login, if fails with invalid credentials, maybe we should register?
-      // Wait, the prompt says "验证码输入框 + 获取验证码按钮 + 登录按钮". 
-      // But we modified the UI to be a generic password field since we don't have send-code.
-      // Or we can call it "密码".
+
       let res = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -50,7 +44,6 @@ export function ProfileModal({ profile, onUpdate, onOpenReminders, onClose }: Pr
       });
       
       if (!res.ok) {
-        // Fallback to register if login fails?
         res = await apiFetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -59,11 +52,20 @@ export function ProfileModal({ profile, onUpdate, onOpenReminders, onClose }: Pr
       }
 
       if (res.ok) {
-        const data = await res.json();
-        setAuthToken(data.token);
-        trackEvent('LOGIN_SUCCESS');
+        const json = await res.json();
+        // 适配返回格式: { success: true, data: { token: 'xxx', user: {...} } }
+        const token = json.data?.token || json.token;
+        const userEmail = json.data?.user?.email || email;
         
-        onUpdate({ ...profile, token: data.token });
+        if (token) {
+          setAuthToken(token);
+          trackEvent('LOGIN_SUCCESS');
+          
+          onUpdate({ ...profile, token, email: userEmail });
+          onClose(); // 登录成功后自动关闭弹窗
+        } else {
+          setError('返回数据错误：无 token');
+        }
       } else {
         const data = await res.json();
         setError(data.message || '登录失败');
@@ -88,7 +90,12 @@ export function ProfileModal({ profile, onUpdate, onOpenReminders, onClose }: Pr
       return;
     }
     setError('');
-    onUpdate({ username: trimName,  });
+    onUpdate({ ...profile, username: trimName });
+  };
+
+  const handleLogout = () => {
+    removeAuthToken();
+    onUpdate({ ...profile, token: undefined, email: undefined });
   };
 
   return (
@@ -165,8 +172,7 @@ export function ProfileModal({ profile, onUpdate, onOpenReminders, onClose }: Pr
                 <div>
                   <label className="block text-xs font-medium text-stone-400 dark:text-stone-500 mb-1.5 ml-1">邮箱ID</label>
                   <div className="w-full px-4 py-3 bg-stone-50 dark:bg-stone-800 border-none rounded-2xl text-stone-500 dark:text-stone-400">
-                    {/* Wait, we don't have email in UserProfile yet, just use a placeholder if not found */}
-                    已登录
+                    {profile.email || '已登录'}
                   </div>
                 </div>
 
@@ -221,12 +227,18 @@ export function ProfileModal({ profile, onUpdate, onOpenReminders, onClose }: Pr
           </div>
 
           {isLoggedIn && (
-            <div className="mt-8">
+            <div className="mt-8 space-y-3">
               <button
                 onClick={handleSave}
                 className="w-full py-4 bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-900 rounded-2xl font-medium hover:opacity-90 active:scale-[0.98] transition-all shadow-lg"
               >
                 保存修改
+              </button>
+              <button
+                onClick={handleLogout}
+                className="w-full py-4 bg-red-50 dark:bg-red-950/20 text-red-500 rounded-2xl font-medium hover:opacity-90 active:scale-[0.98] transition-all border border-red-100 dark:border-red-900/30"
+              >
+                退出登录
               </button>
             </div>
           )}

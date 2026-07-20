@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserState, ActivityLog } from '../types';
-import { Activity, History, X, ChevronLeft, ChevronRight, Sparkles, Laptop, BatteryCharging } from 'lucide-react';
+import { Activity, History, X, ChevronLeft, ChevronRight, Sparkles, Laptop, BatteryCharging, Bell } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from 'recharts';
 
@@ -83,6 +83,23 @@ export function Dashboard({ userState, onOpenHistory, onClose }: DashboardProps)
     setSelectedDayCard({ date: targetDate, dayLogs: dLogs });
   };
 
+  // ========== 🔔 启用通知按钮的处理函数 ==========
+  const handleEnableNotifications = async () => {
+    try {
+      const VAPID_PUB = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+      if (!VAPID_PUB) {
+        alert('❌ VAPID 公钥未配置，请检查环境变量');
+        return;
+      }
+
+      alert('✅ 找到 VAPID 公钥，开始订阅...');
+      const { subscribePush } = await import('../utils/push');
+      await subscribePush(VAPID_PUB);
+    } catch (e) {
+      alert('❌ 加载订阅模块失败: ' + (e as Error).message);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-40 bg-stone-50 dark:bg-stone-950 p-6 flex flex-col md:p-12 overflow-y-auto custom-scrollbar">
       {/* 顶部头部栏 */}
@@ -92,6 +109,15 @@ export function Dashboard({ userState, onOpenHistory, onClose }: DashboardProps)
           状态日志
         </h2>
         <div className="flex items-center gap-3">
+          {/* 🔔 新增：启用通知按钮 */}
+          <button
+            onClick={handleEnableNotifications}
+            className="p-2.5 text-white bg-sky-500 hover:bg-sky-600 dark:bg-sky-500 dark:hover:bg-sky-600 transition-colors rounded-full shadow-sm border border-sky-400/50"
+            title="启用锁屏通知"
+          >
+            <Bell className="w-5 h-5" />
+          </button>
+          
           {onOpenHistory && (
             <button 
               onClick={onOpenHistory}

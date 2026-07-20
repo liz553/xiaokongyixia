@@ -1,7 +1,7 @@
 import { successResponse, errorResponse } from '../../common/response';
 import { handleOptions, withCors } from '../../common/cors';
-import webpush from 'web-push';
 import { generateUUID } from '../../common/crypto';
+import { buildPushRequest } from '@block65/webcrypto-web-push';
 
 export const onRequestOptions = (context: any) => handleOptions(context.request, context.env);
 
@@ -15,11 +15,11 @@ export const onRequestGet = async (context: any) => {
     return withCors(errorResponse('Forbidden', 403, 'FORBIDDEN'), request, env);
   }
 
-  webpush.setVapidDetails(
-    'mailto:admin@example.com',
-    env.VAPID_PUBLIC_KEY,
-    env.VAPID_PRIVATE_KEY
-  );
+  const vapidConfig = {
+    subject: 'mailto:admin@example.com',
+    publicKey: env.VAPID_PUBLIC_KEY,
+    privateKey: env.VAPID_PRIVATE_KEY
+  };
 
   const now = new Date();
   const nowUnix = Math.floor(now.getTime());
@@ -124,25 +124,26 @@ export const onRequestGet = async (context: any) => {
       await env.DB.batch(insertLogs);
     }
 
-    // 逐条发送推送，单条失败不中断整个流程，杜绝1101崩溃
+    // 兼容Cloudflare的推送发送逻辑
     let sentCount = 0;
     for (const push of pushesToSend) {
       try {
-        await webpush.sendNotification(
+        const pushReq = await buildPushRequest(
+          push.payload,
           { endpoint: push.endpoint, keys: push.keys },
-          push.payload
+          vapidConfig
         );
-        sentCount++;
-      } catch (e: any) {
-        // 仅失效订阅标记删除，其余错误直接跳过
-        if (e?.statusCode === 410 || e?.statusCode === 404) {
+        const res = await fetch(pushReq);
+        if (res.ok) sentCount++;
+        if (res.status === 410 || res.status === 404) {
           deleteSubIds.push(push.subId);
         }
+      } catch (e: any) {
         continue;
       }
     }
 
-    // 更新数据库状态
+    // 更新数据库推送状态
     if (updatePushIds.length > 0) {
       const placeholders = updatePushIds.map(() => '?').join(',');
       await env.DB.prepare(`UPDATE scheduled_pushes SET status = 'sent' WHERE id IN (${placeholders})`).bind(...updatePushIds).run();
@@ -156,7 +157,6 @@ export const onRequestGet = async (context: any) => {
 
     return withCors(successResponse({ sent: sentCount, totalTask: pushesToSend.length }), request, env);
   } catch (e: any) {
-    // 顶层全部异常捕获，返回标准JSON，不会触发Worker 1101
     return withCors(errorResponse(String(e?.message || e), 500, 'CRON_ERROR'), request, env);
   }
 };

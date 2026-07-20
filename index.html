@@ -19,32 +19,6 @@
   </head>
   <body>
     <div id="root"></div>
-
-    <!-- 新增推送授权按钮与脚本 -->
-    <button id="pushOpen" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;padding:12px 24px;font-size:16px;">开启锁屏消息推送</button>
-    <script>
-function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
-  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
-}
-document.getElementById('pushOpen').addEventListener('click', async ()=>{
-  const swReg = await navigator.serviceWorker.ready;
-  const perm = await Notification.requestPermission();
-  if(perm !== 'granted'){
-    alert('未允许通知，无法接收推送');
-    return;
-  }
-  // 把引号内替换成你的VAPID公钥字符串
-  const vapidKey = urlBase64ToUint8Array('BOhqP23hpy6LPc5DVJZ--MYnojDYbzJI1sUKb3fLg8sDA6_i6JEmLf3ovRR4qYEFMVU5RTK2kTuoF0hnTw7KreQ');
-  const sub = await swReg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:vapidKey});
-  console.log('endpoint:',sub.endpoint);
-  console.log('p256dh:',sub.keys.p256dh);
-  console.log('auth:',sub.keys.auth);
-})
-    </script>
-
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,7 +1,143 @@
 import { successResponse, errorResponse } from '../../common/response';
 import { handleOptions, withCors } from '../../common/cors';
 import { generateUUID } from '../../common/crypto';
-import { buildPushRequest } from '@block65/webcrypto-web-push';
+
+// Base64工具函数 Cloudflare原生WebCrypto可用
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
+}
+
+// 原生构建Web Push请求，无第三方依赖
+async function createPushRequest(
+  payload: string,
+  subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
+  vapid: { subject: string; publicKey: string; privateKey: string }
+) {
+  const encoder = new TextEncoder();
+  const payloadUint8 = encoder.encode(payload);
+  const p256dh = urlBase64ToUint8Array(subscription.keys.p256dh);
+  const authSecret = urlBase64ToUint8Array(subscription.keys.auth);
+
+  const vapidPubRaw = urlBase64ToUint8Array(vapid.publicKey);
+  const vapidPrivRaw = urlBase64ToUint8Array(vapid.privateKey);
+
+  // 导入VAPID密钥对
+  const vapidPub = await crypto.subtle.importKey(
+    'raw',
+    vapidPubRaw,
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false,
+    ['verify']
+  );
+  const vapidPriv = await crypto.subtle.importKey(
+    'raw',
+    vapidPrivRaw,
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false,
+    ['sign']
+  );
+
+  // 构建JWT Header+Payload
+  const jwtHeader = btoa(JSON.stringify({ alg: 'ES256', typ: 'JWT' }))
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const jwtPayloadObj = {
+    sub: vapid.subject,
+    aud: new URL(subscription.endpoint).origin,
+    exp: Math.floor(Date.now() / 1000) + 43200
+  };
+  const jwtPayload = btoa(JSON.stringify(jwtPayloadObj))
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const jwtUnsigned = `${jwtHeader}.${jwtPayload}`;
+  const jwtSignatureRaw = await crypto.subtle.sign(
+    { name: 'ECDSA', namedCurve: 'P-256', hash: 'SHA-256' },
+    vapidPriv,
+    encoder.encode(jwtUnsigned)
+  );
+  const signatureBytes = new Uint8Array(jwtSignatureRaw);
+  const jwtSig = btoa(String.fromCharCode(...signatureBytes))
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const vapidAuthHeader = `vapid t=${jwtUnsigned}.${jwtSig}, k=${vapid.publicKey}`;
+
+  // 加密推送载荷
+  const localKeyPair = await crypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256' },
+    true,
+    ['deriveKey']
+  );
+  const localPubRaw = await crypto.subtle.exportKey('raw', localKeyPair.publicKey);
+  const localPubB64 = btoa(String.fromCharCode(...new Uint8Array(localPubRaw)))
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+
+  const subscriberPub = await crypto.subtle.importKey(
+    'raw',
+    p256dh,
+    { name: 'ECDH', namedCurve: 'P-256' },
+    false,
+    ['deriveKey']
+  );
+  const sharedSecret = await crypto.subtle.deriveKey(
+    { name: 'ECDH', public: subscriberPub },
+    localKeyPair.privateKey,
+    { name: 'AES-GCM', length: 128 },
+    true,
+    ['encrypt']
+  );
+
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const prkInput = new Uint8Array([...authSecret, ...salt]);
+  const prk = await crypto.subtle.importKey(
+    'raw',
+    prkInput,
+    { name: 'HKDF', hash: 'SHA-256' },
+    false,
+    ['deriveKey']
+  );
+  const contentKey = await crypto.subtle.deriveKey(
+    { name: 'HKDF', salt: new Uint8Array(), info: encoder.encode('Content-Encoding: aes128gcm\0') },
+    prk,
+    { name: 'AES-GCM', length: 128 },
+    false,
+    ['encrypt']
+  );
+  const nonce = await crypto.subtle.deriveBits(
+    { name: 'HKDF', salt: new Uint8Array(), info: encoder.encode('Content-Encoding: nonce\0') },
+    prk,
+    96
+  );
+
+  const padding = new Uint8Array([0x00, 0x00]);
+  const dataToEncrypt = new Uint8Array([...payloadUint8, ...padding]);
+  const encryptedPayload = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: nonce },
+    contentKey,
+    dataToEncrypt
+  );
+  const encryptedUint = new Uint8Array(encryptedPayload);
+
+  // 组装标准aes128gcm格式
+  const finalPayload = new Uint8Array([
+    ...salt,
+    0, 0, 0, encryptedUint.length - 16,
+    ...encryptedUint
+  ]);
+
+  // 构建请求
+  return new Request(subscription.endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/octet-stream',
+      'Content-Length': finalPayload.length.toString(),
+      'Encryption': `salt=${btoa(String.fromCharCode(...salt)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')}`,
+      'Crypto-Key': `dh=${localPubB64}`,
+      'Authorization': vapidAuthHeader,
+      'TTL': '300'
+    },
+    body: finalPayload
+  });
+}
 
 export const onRequestOptions = (context: any) => handleOptions(context.request, context.env);
 
@@ -124,21 +260,20 @@ export const onRequestGet = async (context: any) => {
       await env.DB.batch(insertLogs);
     }
 
-    // 兼容Cloudflare的推送发送逻辑
+    // 逐条发送推送，单条失败隔离，不会全局崩溃
     let sentCount = 0;
     for (const push of pushesToSend) {
       try {
-        const pushReq = await buildPushRequest(
-          push.payload,
-          { endpoint: push.endpoint, keys: push.keys },
-          vapidConfig
-        );
-        const res = await fetch(pushReq);
+        const req = await createPushRequest(push.payload, {
+          endpoint: push.endpoint,
+          keys: push.keys
+        }, vapidConfig);
+        const res = await fetch(req);
         if (res.ok) sentCount++;
         if (res.status === 410 || res.status === 404) {
           deleteSubIds.push(push.subId);
         }
-      } catch (e: any) {
+      } catch (e) {
         continue;
       }
     }

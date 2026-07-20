@@ -6,6 +6,7 @@
   "orientation": "any",
   "background_color": "#fafaf9",
   "theme_color": "#fafaf9",
+  "gcm_sender_id": "123456789",
   "icons": [
     {
       "src": "/icons/icon.svg",
